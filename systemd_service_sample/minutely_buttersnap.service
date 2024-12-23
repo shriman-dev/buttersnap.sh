@@ -1,0 +1,9 @@
+[Unit]
+Description=minutely_buttersnap
+DefaultDependencies=no
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/buttersnap.sh -r true -i Minutely 30 -i Hourly 12 -s /path/to/src1 /path/to/dst1 -s /path/to/src2 /path/to/dst2 -d /path/to/old_snapshots_dir1 -d /path/to/old_snapshots_dir2
+TimeoutStartSec=0
+

@@ -1,0 +1,17 @@
+#
+[Unit]
+Description=minutely_butterSnap
+
+[Timer]
+OnCalendar=*-*-* *:*:00
+
+[Install]
+WantedBy=timers.target
+
+#minutely → *-*-* *:*:00
+#hourly → *-*-* *:00:00
+#daily → *-*-* 00:00:00
+#monthly → *-*-01 00:00:00
+#weekly → Mon *-*-* 00:00:00
+#yearly → *-01-01 00:00:00
+

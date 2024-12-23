@@ -14,7 +14,7 @@ usage() {
 }
 
 
-if [ $(id -u) -ne 0 ]; then
+if [[ $(id -u) -ne 0 ]]; then
   echo -e "\nError: buttersnap.sh must be run as root.\n"
   usage
   exit 1
@@ -29,10 +29,10 @@ SNAPSHOT_DIRS=()
 DELETE_DIRS=()
 
 
-while [ $# -gt 0 ]; do
+while [[ $# -gt 0 ]]; do
   case "$1" in
     -h|--help) usage; exit 0 ;;
-    -r|--readonly) [ "$2" = "true" ] || [ "$2" = "false" ] || { usage; exit 1; }; READONLY=$2; shift 2;;
+    -r|--readonly) [[ "$2" = "true" ]] || [[ "$2" = "false" ]] || { usage; exit 1; }; READONLY=$2; shift 2;;
     -i|--intervals) INTERVALS+=("$2 $3"); shift 3 ;;
     -v|--verbose) VERBOSE=1; shift ;;
     -s|--snapshot) SNAPSHOT_DIRS+=("$2 $3"); shift 3 ;;
@@ -41,7 +41,7 @@ while [ $# -gt 0 ]; do
   esac
 done
 
-READONLY_VALUE="$([ "$READONLY" = "true" ] && echo "-r" || echo "")"
+READONLY_VALUE="$([[ "$READONLY" = "true" ]] && echo "-r" || echo "")"
 
 convert_to_seconds() {
   case $1 in
@@ -61,19 +61,19 @@ convert_to_seconds() {
 take_snap() {
   local src=$1 dst=$2 interval_dir=$3
   # Prepare_destination
-  [ ! -d "$dst" ] && btrfs subvolume create $dst
+  [[ ! -d "$dst" ]] && btrfs subvolume create $dst
   # Create interval directory if it doesn't exist or is empty and create 1st snapshot in it
-  [ ! -d "$dst/$interval_dir" ] || [ -z "$(ls -A $dst/$interval_dir)" ] && mkdir -vp $dst/$interval_dir/1 && btrfs subvolume snapshot $READONLY_VALUE $src $dst/$interval_dir/1/$TIME_DATE
+  [[ ! -d "$dst/$interval_dir" ]] || [[ -z "$(ls -A $dst/$interval_dir)" ]] && mkdir -vp $dst/$interval_dir/1 && btrfs subvolume snapshot $READONLY_VALUE $src $dst/$interval_dir/1/$TIME_DATE
   # Get the current directory number
   local dir_num=$(ls -1 $dst/$interval_dir/ | sort -nr | head -n1)
   # Check if the last snapshot is older than the interval
-  if [ $(stat -c "%Y" $dst/$interval_dir/$dir_num) -lt $(( $(date +%s) - $(convert_to_seconds $interval_dir) )) ]; then
+  if [[ $(stat -c "%Y" $dst/$interval_dir/$dir_num) -lt $(( $(date +%s) - $(convert_to_seconds $interval_dir) )) ]]; then
     # Create a new numbred directory for the snapshot
     mkdir -vp $dst/$interval_dir/$(( dir_num + 1 ))
     # Get the newest directory
     local newest_dir=$( ls -1 -t $2/$interval_dir/ | head -n1 )
     
-    if [ $VERBOSE -eq 1 ]; then
+    if [[ $VERBOSE -eq 1 ]]; then
       echo "Taking snapshot of $src to $dst/$interval_dir/$newest_dir/$TIME_DATE"
     fi
     btrfs subvolume snapshot $READONLY_VALUE $src $dst/$interval_dir/$newest_dir/$TIME_DATE
@@ -86,8 +86,8 @@ delete_snap() {
   # Count the number of directories in the interval directory
   local dir_count=$(ls -1 $dir/$interval_dir/ | wc -l)
   # If there are more directories than the number of snapshots to keep
-  if [ $dir_count -gt $keep_snap ]; then
-    if [ $VERBOSE -eq 1 ]; then
+  if [[ $dir_count -gt $keep_snap ]]; then
+    if [[ $VERBOSE -eq 1 ]]; then
       echo "Deleting old snapshots in $dir/$interval_dir/"
     fi
     # Loop through the directories in the interval directory and delete snapshots starting from oldest 
@@ -108,6 +108,6 @@ for interval in "${INTERVALS[@]}"; do
   done
   # Loop through each interval and delete old snapshots for each delete directory
   for delete_dir in "${DELETE_DIRS[@]}"; do
-    [ -d "$delete_dir" ] && delete_snap "$delete_dir" ${interval%% *} ${interval#* }
+    [[ -d "$delete_dir" ]] && delete_snap "$delete_dir" ${interval%% *} ${interval#* }
   done
 done

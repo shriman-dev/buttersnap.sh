@@ -15,9 +15,7 @@ usage() {
 
 
 if [ $(id -u) -ne 0 ]; then
-  echo
-  echo "Error: buttersnap.sh must be run as root."
-  echo
+  echo -e "\nError: buttersnap.sh must be run as root.\n"
   usage
   exit 1
 fi

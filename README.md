@@ -1,7 +1,7 @@
 ## Installation
 ---------------
 
-```bash
+```
 git clone https://github.com/shriman-dev/buttersnap.sh.git
 cd buttersnap.sh
 chmod +x buttersnap.sh
@@ -10,7 +10,7 @@ sudo cp buttersnap.sh /usr/bin/
 
 ## Usage
 -----
-```bash
+```
 
 Usage: /usr/bin/buttersnap.sh [options]
 

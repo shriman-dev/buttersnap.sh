@@ -102,12 +102,12 @@ delete_snap() {
 
 # Loop through each interval
 for interval in "${INTERVALS[@]}"; do
-  # Take a snapshot for each subvolume in each interval directory
+  # Take a snapshot for each subvolume
   for snapshot_dir in "${SNAPSHOT_DIRS[@]}"; do
     read -r src dst <<< "$snapshot_dir"
     stat -f -c "%T" $src | grep -q btrfs && take_snap $src $dst ${interval%% *}
   done
-  # Delete old snapshots in each interval directory
+  # Delete old snapshots in each given directory
   for delete_dir in "${DELETE_DIRS[@]}"; do
     [[ -d "$delete_dir" ]] && delete_snap "$delete_dir" ${interval%% *} ${interval#* }
   done

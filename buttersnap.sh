@@ -7,8 +7,8 @@ usage() {
   echo "  -r, --readonly     Specify whether to create readonly snapshots (Default: true)"
   echo "  -i, --intervals    Specify time intervals and snapshots to keep (e.g. Minutely 30 or Hourly 12)"
   echo "  -v, --verbose      Enable verbose mode"
-  echo "  -s, --snapshot     Specify snapshot source and destination directories (multiple paths allowed)"
-  echo "  -d, --delete-snaps Specify directories to delete old snapshots from (multiple paths allowed)"
+  echo "  -s, --snapshot     Specify source subvolume and destination directory to take snapshot (multiple paths allowed)"
+  echo "  -d, --delete-snaps Specify directory to delete old snapshots from (multiple paths allowed)"
   echo ""
   echo "Example usage: $0 -r true -i Minutely 30 -i Hourly 12 -s /path/to/src1 /path/to/dst1 -s /path/to/src2 /path/to/dst2 -d /path/to/old_snapshots_dir1 -d /path/to/old_snapshots_dir2"
 }
@@ -90,23 +90,24 @@ delete_snap() {
     if [[ $VERBOSE -eq 1 ]]; then
       echo "Deleting old snapshots in $dir/$interval_dir/"
     fi
-    # Loop through the directories in the interval directory and delete snapshots starting from oldest 
+    # Loop through the directories in the interval directory and delete snapshots starting from oldest
     for ndir in $(ls -1 --sort=time --reverse $dir/$interval_dir/ | head -n -$keep_snap); do
       btrfs subvolume delete $dir/$interval_dir/$ndir/*
     done
-    # Remove any empty directories in the interval directory
+    # Remove empty directories in the interval directory
     find $dir/$interval_dir/ -maxdepth 1 -mindepth 1 -type d -empty -delete
   fi
 }
 
 
-# Loop through each interval and take a snapshot for each snapshot directory
+# Loop through each interval
 for interval in "${INTERVALS[@]}"; do
+  # Take a snapshot for each subvolume in each interval directory
   for snapshot_dir in "${SNAPSHOT_DIRS[@]}"; do
     read -r src dst <<< "$snapshot_dir"
     stat -f -c "%T" $src | grep -q btrfs && take_snap $src $dst ${interval%% *}
   done
-  # Loop through each interval and delete old snapshots for each delete directory
+  # Delete old snapshots in each interval directory
   for delete_dir in "${DELETE_DIRS[@]}"; do
     [[ -d "$delete_dir" ]] && delete_snap "$delete_dir" ${interval%% *} ${interval#* }
   done

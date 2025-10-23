@@ -6,8 +6,8 @@ Minimal bash script to create periodic snapshots of Btrfs subvolumes and automat
 ```
 git clone https://github.com/shriman-dev/buttersnap.sh.git
 cd buttersnap.sh
-chmod +x buttersnap.sh
-sudo cp buttersnap.sh /usr/bin/
+chmod +x buttersnap.sh buttercopy.sh
+sudo cp buttersnap.sh buttercopy.sh /usr/bin/
 ```
 
 ## Usage

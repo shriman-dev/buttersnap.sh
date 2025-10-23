@@ -12,18 +12,36 @@ sudo cp buttersnap.sh /usr/bin/
 
 ## Usage
 -----
+<u><strong>buttersnap.sh</strong></u>
 ```
+Usage: buttersnap.sh [options] ...
+Options:
+ -h, --help                          Show this help message
+ -v, --verbose                       Enable verbose output (use -vv for debug verbosity)
+ -r, --readonly <true|false>         Specify whether to create readonly snapshots (Default: true)
+ --list-intervals                    List available intervals
 
-Usage: /usr/bin/buttersnap.sh [options]
+ -i, --intervals <interval> <count>  Specify list of intervals and number of snapshots to keep for the interval
+                                     Example: -i "Minutely 30 Every15minutes 3 Hourly 12 Daily 7"
+ -s, --snapshot <subvol> <dst_dir>   Specify source subvolume and destination directory to take snapshot
+ -d, --delete-snaps <old_snap_dir>   Specify directory to delete old snapshots from
+                                     Note: "-s" and "-d" options can be specified multiple times
 
-  -h, --help         Display this help message
-  -r, --readonly     Specify whether to create readonly snapshots (Default: true)
-  -i, --intervals    Specify time intervals and snapshots to keep (e.g. Minutely 30 or Hourly 12)
-  -v, --verbose      Enable verbose mode
-  -s, --snapshot     Specify snapshot source and destination directories (multiple paths allowed)
-  -d, --delete-snaps Specify directories to delete old snapshots from (multiple paths allowed)
-
-Example usage: /usr/bin/buttersnap.sh -r true -i Minutely 30 -i Hourly 12 -s /path/to/src1 /path/to/dst1 -s /path/to/src2 /path/to/dst2 -d /path/to/old_snapshots_dir1 -d /path/to/old_snapshots_dir2
+Examples usage:
+ buttersnap.sh -r true -i "Minutely 30 Hourly 12" -s /path/to/src-subvol /path/to/dst-dir -d /path/to/old_snapshots_dir
 
 ```
+<u><strong>buttercopy.sh</strong></u>
+```
+Usage: buttercopy.sh [options] ...
+Options:
+ -h, --help                       Show this help message
+ -v, --verbose                    Enable verbose output (use -vv for debug verbosity)
+ -r, --readonly <true|false>      Specify whether to create readonly snapshots (Default: false)
+ -n, --custom-name                Set custom name for sent subvolume on destination
+ -s, --src-subvolume              Specify source subvolume to copy
+ -d, --dst-btrfs-volume           Specify path to another BTRFS volume to send full copy
 
+Examples usage:
+ buttercopy.sh -r true -n custom_name -s /path/to/src-subvolume -d /path/to/dir-on-btrfs-volume
+```

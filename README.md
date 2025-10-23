@@ -38,7 +38,7 @@ Options:
  -h, --help                       Show this help message
  -v, --verbose                    Enable verbose output (use -vv for debug verbosity)
  -r, --readonly <true|false>      Specify whether to create readonly snapshots (Default: false)
- -n, --custom-name                Set custom name for sent subvolume on destination
+ -n, --custom-name                Set custom name for subvolume to be sent on destination
  -s, --src-subvolume              Specify source subvolume to copy
  -d, --dst-btrfs-volume           Specify path to another BTRFS volume to send full copy
 

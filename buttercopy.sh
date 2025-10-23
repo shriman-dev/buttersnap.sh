@@ -99,7 +99,7 @@ show_help() {
     echo " -h, --help                       Show this help message"
     echo " -v, --verbose                    Enable verbose output (use -vv for debug verbosity)"
     echo " -r, --readonly <true|false>      Specify whether to create readonly snapshots (Default: false)"
-    echo " -n, --custom-name                Set custom name for sent subvolume on destination"
+    echo " -n, --custom-name                Set custom name for subvolume to be sent on destination"
     echo " -s, --src-subvolume              Specify source subvolume to copy"
     echo " -d, --dst-btrfs-volume           Specify path to another BTRFS volume to send full copy"
     echo ""

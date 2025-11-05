@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 READONLY=false
 QUIET=false
 VERBOSE=
@@ -34,22 +34,23 @@ need_root() {
 
 validate_path() {
     [[ $# -eq 0 ]] && err "No paths provided to validate"
+    local path
     for path in "$@"; do
         [[ ! -d "${path}" ]] && die "Path does not exist: ${path}"
         log "DEBUG" "Validating path is on BTRFS filesystem: ${path}"
-        findmnt -n -o FSTYPE -T "${path}" | grep -q "btrfs" || die "Path is not on a BTRFS filesystem: ${path}"
-        log "DEBUG" "Path is on BTRFS filesystem."
+        findmnt -n -o FSTYPE -T "${path}" | grep -q "btrfs" ||
+                die "Path is not on a BTRFS filesystem: ${path}"
     done
 }
 
 cleanup_command() {
     while [ $# -gt 0 ]; do
         case "${1}" in
-            rm-tmpdir) rm ${VERBOSE:+-v} -rf "${tmpdir}";
+            tmpdir) rm ${VERBOSE:+-v} -rf "${tmpdir}";
                 ;;
-            del-src-suffix) ${BTRFS} subvolume delete "${tmpdir}/${suffix_src_subvol}";
+            src-suffix) ${BTRFS} subvolume delete "${tmpdir}/${suffix_src_subvol}";
                 ;;
-            del-dst-suffix) ${BTRFS} subvolume delete "${dst_btrfs_vol}/${suffix_src_subvol}";
+            dst-suffix) ${BTRFS} subvolume delete "${dst_btrfs_vol}/${suffix_src_subvol}";
                 ;;
             *) die "Invalid cleanup command: ${1}"
                 ;;
@@ -60,7 +61,8 @@ cleanup_command() {
 
 copy_operation() {
     local src_subvol="${1%/}" dst_btrfs_vol="${2%/}" copy_suffix="buttercopy"
-    local dst_subvol_name=${3:-"$(basename ${src_subvol})"} readonly="$([[ ${READONLY} == true ]] && echo '-r')"
+    local dst_subvol_name=${3:-"$(basename ${src_subvol})"}
+    local readonly="$([[ ${READONLY} == true ]] && echo '-r')"
 
     validate_path "${src_subvol}" "${dst_btrfs_vol}"
     [[ "$(findmnt -n -o UUID -T "$SRC_SUBVOLUME")" == "$(findmnt -n -o UUID -T "${dst_btrfs_vol}")" ]] &&
@@ -73,18 +75,20 @@ copy_operation() {
         local tmpdir="$(dirname "${src_subvol}")/.tmpdir"
         mkdir ${VERBOSE:+-v} -p "${tmpdir}"
         ${BTRFS} subvolume snapshot -r "${src_subvol}" "${tmpdir}/${suffix_src_subvol}" ||
-                die "Could not create readonly snapshot of source subvolume" "cleanup_command rm-tmpdir"
+                die "Could not create readonly snapshot of source subvolume" \
+                    "cleanup_command tmpdir"
         ${BTRFS} send --compressed-data "${tmpdir}/${suffix_src_subvol}" | \
         ${BTRFS2} receive "${dst_btrfs_vol}" ||
-                die "Could not send full copy to: ${dst_btrfs_vol}" "cleanup_command del-src-suffix rm-tmpdir"
+                die "Could not send full copy to: ${dst_btrfs_vol}" \
+                    "cleanup_command src-suffix tmpdir"
 
         log "DEBUG" "Creating \"${dst_subvol_name}\" named subvolume on BTRFS volume: ${dst_btrfs_vol}"
         log "DEBUG" "Readonly status: ${READONLY}"
         ${BTRFS} subvolume snapshot ${readonly} "${dst_btrfs_vol}/${suffix_src_subvol}" \
                 "${dst_btrfs_vol}/${dst_subvol_name}" ||
                 die "Could not create subvolume on: ${dst_btrfs_vol}" \
-                    "cleanup_command del-src-suffix del-dst-suffix rm-tmpdir"
-        cleanup_command del-src-suffix del-dst-suffix rm-tmpdir
+                    "cleanup_command src-suffix dst-suffix tmpdir"
+        cleanup_command src-suffix dst-suffix tmpdir
     else
         ${BTRFS} subvolume list "${dst_btrfs_vol}" | grep -Ew --color=always "${grep_pattern}"
         die "Copy failed. Existing subvolume found with name \"${dst_subvol_name}\" on ${dst_btrfs_vol}"

@@ -1,4 +1,5 @@
-#!/bin/bash
+#!/usr/bin/env bash
+DT_FORMAT="%H.%M.%S-%Y%m%d"
 SNAPSHOT_DIRS=()
 DELETE_DIRS=()
 READONLY=true
@@ -39,8 +40,8 @@ validate_path() {
     for path in "$@"; do
         [[ ! -d "${path}" ]] && die "Path does not exist: ${path}"
         log "DEBUG" "Validating path is on BTRFS filesystem: ${path}"
-        findmnt -n -o FSTYPE -T "${path}" | grep -q "btrfs" || die "Path is not on a BTRFS filesystem: ${path}"
-        log "DEBUG" "Path is on BTRFS filesystem."
+        findmnt -n -o FSTYPE -T "${path}" | grep -q "btrfs" ||
+                die "Path is not on a BTRFS filesystem: ${path}"
     done
 }
 
@@ -76,7 +77,7 @@ is_dir_older() {
 
 take_snap() {
     local src="${1%/}" dst="${2%/}" interval_dir="${3}" readonly="$([[ ${READONLY} == true ]] && echo '-r')"
-    local time_date last_dir_num interval_seconds newest_dir
+    local last_dir_num interval_seconds newest_dir
     validate_path "${src}" "${dst}"
 
     # Create interval directory if it doesn't exist or is empty and create first snapshot in it
@@ -84,8 +85,8 @@ take_snap() {
         log "INFO" "Creating first snapshot with interval \"${interval_dir}\" for: ${src}"
         log "DEBUG" "Readonly status: ${READONLY}"
         mkdir ${VERBOSE:+-v} -p "${dst}/${interval_dir}/1"
-        time_date="$(date "+%H.%M.%S_%Y%m%d")"
-        ${BTRFS} subvolume snapshot ${readonly} "${src}" "${dst}/${interval_dir}/1/${time_date}" ||
+        ${BTRFS} subvolume snapshot ${readonly} "${src}" \
+            "${dst}/${interval_dir}/1/$(date +${DT_FORMAT})" ||
                 die "Could not create first snapshot for subvolume: ${src}, in ${dst}/${interval_dir}"
     fi
 
@@ -98,10 +99,10 @@ take_snap() {
         mkdir ${VERBOSE:+-v} -p "${dst}/${interval_dir}/$(( last_dir_num + 1 ))"
         # Get the newest directory
         newest_dir=$(ls -A1 -t "${dst}/${interval_dir}/" | head -n1)
-        time_date="$(date "+%H.%M.%S_%Y%m%d")"
-        log "INFO" "Taking snapshot of ${src} to ${dst}/${interval_dir}/${newest_dir}/${time_date}"
+        log "INFO" "Taking snapshot of ${src} to ${dst}/${interval_dir}/${newest_dir}/$(date +${DT_FORMAT})"
         log "DEBUG" "Readonly status: ${READONLY}"
-        ${BTRFS} subvolume snapshot ${readonly} "${src}" "${dst}/${interval_dir}/${newest_dir}/${time_date}" ||
+        ${BTRFS} subvolume snapshot ${readonly} "${src}" \
+            "${dst}/${interval_dir}/${newest_dir}/$(date +${DT_FORMAT})" ||
                 die "Could not create snapshot for subvolume: ${src}, in ${dst}/${interval_dir}"
     fi
     # Mark destination directory

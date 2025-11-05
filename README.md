@@ -1,4 +1,4 @@
-Minimal bash scripts to create periodic snapshots, automatic deletion of old snapshots and copy subvolumes to another BTRFS volume
+Simple bash scripts to create periodic snapshots, automatic deletion of old snapshots and copy subvolumes to another BTRFS volume
 
 ## Installation
 ---------------

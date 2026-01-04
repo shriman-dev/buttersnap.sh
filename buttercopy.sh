@@ -3,7 +3,6 @@ READONLY=false
 QUIET=false
 VERBOSE=
 BTRFS="btrfs ${VERBOSE:+-v}"
-BTRFS2="$([[ ${VERBOSE} -eq 2 ]] && echo 'btrfs -v' || echo 'btrfs')"
 
 declare -r red=$'\033[31m' green=$'\033[32m' yellow=$'\033[33m' cyan=$'\033[36m'
 declare -r bold=$'\033[1m' normal=$'\033[0m'
@@ -23,8 +22,11 @@ log() {
     echo -e "${bold}${datetime}${color}[${level^^}]${normal} ${msg}"
 }
 
-# Error handling with optional function call
-die() { log "ERROR" "${1}"; [[ -n "${2}" ]] && ${2}; exit 1; }
+# Error handling with optional pre-exit function call
+die() {
+    local pre_exit_hook="${2:-}"
+    log "ERROR" "${1}"; [[ -n "${pre_exit_hook}" ]] && ${pre_exit_hook}; exit 1
+}
 
 err() { log "ERROR" "${1}"; return 1; }
 
@@ -33,18 +35,34 @@ need_root() {
 }
 
 validate_path() {
-    [[ $# -eq 0 ]] && err "No paths provided to validate"
-    local path
+    local path fs_check
+    [[ $# -eq 0 ]] && die "No path provided to validate"
+
+    if [[ ! "${1}" =~ "/" ]]; then
+        local fs_check="${1}"
+        shift
+    fi
+
     for path in "$@"; do
         [[ ! -d "${path}" ]] && die "Path does not exist: ${path}"
-        log "DEBUG" "Validating path is on BTRFS filesystem: ${path}"
-        findmnt -n -o FSTYPE -T "${path}" | grep -q "btrfs" ||
-                die "Path is not on a BTRFS filesystem: ${path}"
+        if [[ -n "${fs_check}" ]]; then
+            log "DEBUG" "Validating path exists on ${fs_check} filesystem: ${path}"
+            local path_fs="$(stat -f -c '%T' ${path})"
+            [[ "${path_fs,,}" == "${fs_check,,}" ]] ||
+                die "Path is not on ${fs_check} filesystem: ${path}"
+        fi
     done
 }
 
+one_filesystem() {
+    [[ $# -eq 2 ]] || die "Specify two paths to check filesystem"
+    [[ $(stat -L -c %d ${1}) -eq $(stat -L -c %d ${2}) ]]
+}
+
+if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
+
 cleanup_command() {
-    while [ $# -gt 0 ]; do
+    while [[ $# -gt 0 ]]; do
         case "${1}" in
             tmpdir) rm ${VERBOSE:+-v} -rf "${tmpdir}";
                 ;;
@@ -64,21 +82,24 @@ copy_operation() {
     local dst_subvol_name=${3:-"$(basename ${src_subvol})"}
     local readonly="$([[ ${READONLY} == true ]] && echo '-r')"
 
-    validate_path "${src_subvol}" "${dst_btrfs_vol}"
-    [[ "$(findmnt -n -o UUID -T "$SRC_SUBVOLUME")" == "$(findmnt -n -o UUID -T "${dst_btrfs_vol}")" ]] &&
+    validate_path "btrfs" "${src_subvol}" "${dst_btrfs_vol}"
+    one_filesystem "${src_subvol}" "${dst_btrfs_vol}" &&
             die "Destination path is on the same BTRFS volume as the source subvolume"
 
     local grep_pattern="${dst_subvol_name}$|${dst_subvol_name}_${copy_suffix}$"
     local suffix_src_subvol="$(basename ${src_subvol})_${copy_suffix}"
     if ! ${BTRFS} subvolume list "${dst_btrfs_vol}" | grep -qEw "${grep_pattern}"; then
         log "INFO" "Sending full snapshot copy of ${src_subvol} to BTRFS volume: ${dst_btrfs_vol}"
+
+        local btrfs_send="${BTRFS} send --compressed-data"
+        local btrfs_receive="$([[ ${VERBOSE} -eq 2 ]] && echo 'btrfs -v' || echo 'btrfs') receive"
         local tmpdir="$(dirname "${src_subvol}")/.tmpdir"
+
         mkdir ${VERBOSE:+-v} -p "${tmpdir}"
         ${BTRFS} subvolume snapshot -r "${src_subvol}" "${tmpdir}/${suffix_src_subvol}" ||
                 die "Could not create readonly snapshot of source subvolume" \
                     "cleanup_command tmpdir"
-        ${BTRFS} send --compressed-data "${tmpdir}/${suffix_src_subvol}" | \
-        ${BTRFS2} receive "${dst_btrfs_vol}" ||
+        ${btrfs_send} "${tmpdir}/${suffix_src_subvol}" | ${btrfs_receive} "${dst_btrfs_vol}" ||
                 die "Could not send full copy to: ${dst_btrfs_vol}" \
                     "cleanup_command src-suffix tmpdir"
 
@@ -156,3 +177,5 @@ main() {
 }
 
 main "$@"
+
+fi

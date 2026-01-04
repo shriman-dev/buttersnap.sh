@@ -1,55 +1,18 @@
 #!/usr/bin/env bash
+source $(dirname ${0})/buttercopy.sh || exit 1
+
 DT_FORMAT="%H.%M.%S-%Y%m%d"
 SNAPSHOT_DIRS=()
 DELETE_DIRS=()
 READONLY=true
-QUIET=false
-VERBOSE=
-BTRFS="btrfs ${VERBOSE:+-v}"
-
-declare -r red=$'\033[31m' green=$'\033[32m' yellow=$'\033[33m' cyan=$'\033[36m'
-declare -r bold=$'\033[1m' normal=$'\033[0m'
-
-# Logging with optional verbose output
-log() {
-    local color level="${1}" msg="${@:2}"
-    local datetime="$([[ ${VERBOSE} -ge 2 ]] && date '+[%Y-%m-%d %H:%M:%S] ')"
-
-    case "${level^^}" in
-        "DEBUG") color=${cyan}; [[ ${QUIET} == false && ${VERBOSE} -eq 2 ]] || return ;;
-        "INFO")  color=${green}; [[ ${QUIET} == false ]] || return ;;
-        "WARN")  color=${yellow}; [[ ${QUIET} == false ]] || return  ;;
-        "ERROR") color=${red} ;;
-    esac
-
-    echo -e "${bold}${datetime}${color}[${level^^}]${normal} ${msg}"
-}
-
-# Error handling with optional function call
-die() { log "ERROR" "${1}"; [[ -n "${2}" ]] && ${2}; exit 1; }
-
-err() { log "ERROR" "${1}"; return 1; }
-
-need_root() {
-    [[ $(id -u) -eq 0 ]] || die "This operation requires root privileges"
-}
-
-validate_path() {
-    [[ $# -eq 0 ]] && err "No paths provided to validate"
-    local path
-    for path in "$@"; do
-        [[ ! -d "${path}" ]] && die "Path does not exist: ${path}"
-        log "DEBUG" "Validating path is on BTRFS filesystem: ${path}"
-        findmnt -n -o FSTYPE -T "${path}" | grep -q "btrfs" ||
-                die "Path is not on a BTRFS filesystem: ${path}"
-    done
-}
 
 convert_to_seconds() {
     # Define unit factors
     local -A factors
-    factors=(["minute"]=60 ["hour"]=3600 ["day"]=86400 ["week"]=604800 ["month"]=2592000 ["year"]=31536000)
-    [[ $# -eq 1 ]] && {
+    factors=(
+        ["minute"]=60 ["hour"]=3600 ["day"]=86400 ["week"]=604800 ["month"]=2592000 ["year"]=31536000
+    )
+    if [[ $# -eq 1 ]]; then
         local arg=${1,,}
         if [[ ${arg} =~ ^every([0-9]+)(minute|hour|day|week|month|year)s?$ ]]; then
             local n=${BASH_REMATCH[1]}
@@ -58,9 +21,9 @@ convert_to_seconds() {
         elif [[ ${arg/dai/day} =~ ^(minute|hour|day|week|month|year)ly?$ ]]; then
             echo ${factors[${BASH_REMATCH[1]}]}
         else
-            die "Invalid input: ${arg}"
+            die "Invalid interval: ${arg}"
         fi
-    }
+    fi
 
     [[ $# -eq 0 ]] && { echo -e "Available Intervals:
         Minutely\n\tHourly\n\tDaily\n\tWeekly\n\tMonthly\n\tYearly
@@ -78,7 +41,7 @@ is_dir_older() {
 take_snap() {
     local src="${1%/}" dst="${2%/}" interval_dir="${3}" readonly="$([[ ${READONLY} == true ]] && echo '-r')"
     local last_dir_num interval_seconds newest_dir
-    validate_path "${src}" "${dst}"
+    validate_path "btrfs" "${src}" "${dst}"
 
     # Create interval directory if it doesn't exist or is empty and create first snapshot in it
     if [[ ! -d "${dst}/${interval_dir}" ]] || [[ -z "$(ls -A ${dst}/${interval_dir})" ]]; then
@@ -112,7 +75,7 @@ take_snap() {
 delete_snap() {
     local del_dir="${1%/}" interval_dir="${2}" keep_snap=${3}
     local dir_count ndir
-    validate_path "${del_dir}/${interval_dir}"
+    validate_path "btrfs" "${del_dir}/${interval_dir}"
 
     # Count the number of directories in the interval directory
     dir_count=$(ls -A1 "${del_dir}/${interval_dir}/" | wc -l)

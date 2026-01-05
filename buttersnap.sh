@@ -29,7 +29,7 @@ convert_to_seconds() {
         Minutely\n\tHourly\n\tDaily\n\tWeekly\n\tMonthly\n\tYearly
         Every<N>minutes\n\tEvery<N>hours\n\tEvery<N>days
         Every<N>weeks\n\tEvery<N>months\n\tEvery<N>years"
-        echo "Note: Intervals can be used case insensitively";}
+        echo "Note: Intervals can be used case insensitively"; }
 }
 
 # Check if a dir is older than a specified number of seconds
@@ -40,17 +40,19 @@ is_dir_older() {
 
 take_snap() {
     local src="${1%/}" dst="${2%/}" interval_dir="${3}" readonly="$([[ ${READONLY} == true ]] && echo '-r')"
-    local last_dir_num interval_seconds newest_dir
+    local dt_snap last_dir_num interval_seconds newest_dir
     validate_path "btrfs" "${src}" "${dst}"
 
     # Create interval directory if it doesn't exist or is empty and create first snapshot in it
     if [[ ! -d "${dst}/${interval_dir}" ]] || [[ -z "$(ls -A ${dst}/${interval_dir})" ]]; then
-        log "INFO" "Creating first snapshot with interval \"${interval_dir}\" for: ${src}"
+        dt_snap="$(date +${DT_FORMAT})"
+        log "INFO" "Creating first snapshot | Source: ${src} | Snapshot: ${dst}/${interval_dir}/1/${dt_snap}"
+        log "DEBUG" "Interval: ${interval_dir}"
         log "DEBUG" "Readonly status: ${READONLY}"
         mkdir ${VERBOSE:+-v} -p "${dst}/${interval_dir}/1"
         ${BTRFS} subvolume snapshot ${readonly} "${src}" \
-            "${dst}/${interval_dir}/1/$(date +${DT_FORMAT})" ||
-                die "Could not create first snapshot for subvolume: ${src}, in ${dst}/${interval_dir}"
+            "${dst}/${interval_dir}/1/${dt_snap}" ||
+                die "Could not create snapshot | Source: ${src} | Snapshot: ${dst}/${interval_dir}/1/${dt_snap}"
     fi
 
     # Get the last directory number
@@ -58,15 +60,17 @@ take_snap() {
     # Check if the last snapshot is older than the interval
     interval_seconds=$(convert_to_seconds "${interval_dir}")
     if is_dir_older ${interval_seconds} "${dst}/${interval_dir}/${last_dir_num}"; then
+        dt_snap="$(date +${DT_FORMAT})"
         # Create a new numbred directory for the snapshot
         mkdir ${VERBOSE:+-v} -p "${dst}/${interval_dir}/$(( last_dir_num + 1 ))"
         # Get the newest directory
         newest_dir=$(ls -A1 -t "${dst}/${interval_dir}/" | head -n1)
-        log "INFO" "Taking snapshot of ${src} to ${dst}/${interval_dir}/${newest_dir}/$(date +${DT_FORMAT})"
+        log "INFO" "Taking snapshot | Source: ${src} | Snapshot: ${dst}/${interval_dir}/${newest_dir}/${dt_snap}"
+        log "DEBUG" "Interval: ${interval_dir}"
         log "DEBUG" "Readonly status: ${READONLY}"
         ${BTRFS} subvolume snapshot ${readonly} "${src}" \
-            "${dst}/${interval_dir}/${newest_dir}/$(date +${DT_FORMAT})" ||
-                die "Could not create snapshot for subvolume: ${src}, in ${dst}/${interval_dir}"
+            "${dst}/${interval_dir}/${newest_dir}/${dt_snap}" ||
+                die "Could not create snapshot | Source: ${src} | Snapshot: ${dst}/${interval_dir}/${newest_dir}/${dt_snap}"
     fi
     # Mark destination directory
     [[ -f "${dst}/.buttersnap" ]] || touch "${dst}/.buttersnap"
@@ -94,7 +98,7 @@ delete_snap() {
 }
 
 show_help() {
-    echo "Usage: $(basename "${0}") [options] ..."
+    echo "Usage: $(basename ${0}) [options] ..."
     echo "Options:"
     echo " -h, --help                          Show this help message"
     echo " -v, --verbose                       Enable verbose output (use -vv for debug verbosity)"
@@ -108,7 +112,7 @@ show_help() {
     echo "                                     Note: \"-s\" and \"-d\" options can be specified multiple times"
     echo ""
     echo "Examples usage:"
-    echo " $(basename "${0}") -r true -i \"Minutely 30 Hourly 12\" -s /path/to/src-subvol /path/to/dst-dir -d /path/to/old_snapshots_dir"
+    echo " $(basename ${0}) -r true -i \"Minutely 30 Hourly 12\" -s /path/to/src-subvol /path/to/dst-dir -d /path/to/old_snapshots_dir"
 }
 
 snapshot_operation() {
@@ -156,16 +160,17 @@ snapshot_operation() {
     done
 
     need_root
-    local set_array src dst interval_keeplimit snapshot_dir delete_snap
-    local -a pair_interval_and_keeplimit=()
+    BTRFS="btrfs ${VERBOSE:+-v}"
+    local set_array src dst interval_keepsnap snapshot_dir delete_snap
+    local -a pair_interval_with_keepsnap=()
 
     read -ra set_array <<< "${INTERVALS}"
     for ((i=0; i<${#set_array[@]}; i+=2)); do
-        pair_interval_and_keeplimit+=("${set_array[i]} ${set_array[i+1]}")
+        pair_interval_with_keepsnap+=("${set_array[i]} ${set_array[i+1]}")
     done
 
-    for interval_keeplimit in "${pair_interval_and_keeplimit[@]}"; do
-        local interval="${interval_keeplimit%% *}" keeplimit=${interval_keeplimit#* }
+    for interval_keepsnap in "${pair_interval_with_keepsnap[@]}"; do
+        local interval="${interval_keepsnap%% *}" keepsnap=${interval_keepsnap#* }
         # Take a snapshot for each subvolume
         for snapshot_dir in "${SNAPSHOT_DIRS[@]}"; do
             read -r src dst <<< "${snapshot_dir}"
@@ -173,7 +178,7 @@ snapshot_operation() {
         done
         # Delete old snapshots in each given directory
         for delete_dir in "${DELETE_DIRS[@]}"; do
-            delete_snap "${delete_dir}" "${interval}" ${keeplimit}
+            delete_snap "${delete_dir}" "${interval}" ${keepsnap}
         done
     done
 }

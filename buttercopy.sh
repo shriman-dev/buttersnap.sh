@@ -2,7 +2,6 @@
 READONLY=false
 QUIET=false
 VERBOSE=
-BTRFS="btrfs ${VERBOSE:+-v}"
 
 declare -r red=$'\033[31m' green=$'\033[32m' yellow=$'\033[33m' cyan=$'\033[36m'
 declare -r bold=$'\033[1m' normal=$'\033[0m'
@@ -24,7 +23,7 @@ log() {
 
 # Error handling with optional pre-exit function call
 die() {
-    local pre_exit_hook="${2:-}"
+    local pre_exit_hook="${2}"
     log "ERROR" "${1}"; [[ -n "${pre_exit_hook}" ]] && ${pre_exit_hook}; exit 1
 }
 
@@ -61,7 +60,7 @@ one_filesystem() {
 
 if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
 
-cleanup_command() {
+cleanup_temp() {
     while [[ $# -gt 0 ]]; do
         case "${1}" in
             tmpdir) rm ${VERBOSE:+-v} -rf "${tmpdir}";
@@ -89,7 +88,7 @@ copy_operation() {
     local grep_pattern="${dst_subvol_name}$|${dst_subvol_name}_${copy_suffix}$"
     local suffix_src_subvol="$(basename ${src_subvol})_${copy_suffix}"
     if ! ${BTRFS} subvolume list "${dst_btrfs_vol}" | grep -qEw "${grep_pattern}"; then
-        log "INFO" "Sending full snapshot copy of ${src_subvol} to BTRFS volume: ${dst_btrfs_vol}"
+        log "INFO" "Sending full snapshot copy | Source: ${src_subvol} to BTRFS volume: ${dst_btrfs_vol}"
 
         local btrfs_send="${BTRFS} send --compressed-data"
         local btrfs_receive="$([[ ${VERBOSE} -eq 2 ]] && echo 'btrfs -v' || echo 'btrfs') receive"
@@ -97,19 +96,19 @@ copy_operation() {
 
         mkdir ${VERBOSE:+-v} -p "${tmpdir}"
         ${BTRFS} subvolume snapshot -r "${src_subvol}" "${tmpdir}/${suffix_src_subvol}" ||
-                die "Could not create readonly snapshot of source subvolume" \
-                    "cleanup_command tmpdir"
+                die "Could not create readonly temp-snapshot of source: ${src_subvol}" \
+                    "cleanup_temp tmpdir"
         ${btrfs_send} "${tmpdir}/${suffix_src_subvol}" | ${btrfs_receive} "${dst_btrfs_vol}" ||
                 die "Could not send full copy to: ${dst_btrfs_vol}" \
-                    "cleanup_command src-suffix tmpdir"
+                    "cleanup_temp src-suffix tmpdir"
 
         log "DEBUG" "Creating \"${dst_subvol_name}\" named subvolume on BTRFS volume: ${dst_btrfs_vol}"
         log "DEBUG" "Readonly status: ${READONLY}"
         ${BTRFS} subvolume snapshot ${readonly} "${dst_btrfs_vol}/${suffix_src_subvol}" \
                 "${dst_btrfs_vol}/${dst_subvol_name}" ||
-                die "Could not create subvolume on: ${dst_btrfs_vol}" \
-                    "cleanup_command src-suffix dst-suffix tmpdir"
-        cleanup_command src-suffix dst-suffix tmpdir
+                die "Could not create ${READONLY+readonly }subvolume on: ${dst_btrfs_vol}" \
+                    "cleanup_temp src-suffix dst-suffix tmpdir"
+        cleanup_temp src-suffix dst-suffix tmpdir
     else
         ${BTRFS} subvolume list "${dst_btrfs_vol}" | grep -Ew --color=always "${grep_pattern}"
         die "Copy failed. Existing subvolume found with name \"${dst_subvol_name}\" on ${dst_btrfs_vol}"
@@ -119,7 +118,7 @@ copy_operation() {
 }
 
 show_help() {
-    echo "Usage: $(basename "${0}") [options] ..."
+    echo "Usage: $(basename ${0}) [options] ..."
     echo "Options:"
     echo " -h, --help                       Show this help message"
     echo " -v, --verbose                    Enable verbose output (use -vv for debug verbosity)"
@@ -129,7 +128,7 @@ show_help() {
     echo " -d, --dst-btrfs-volume           Specify path to another BTRFS volume to send full copy"
     echo ""
     echo "Examples usage:"
-    echo " $(basename "${0}") -r true -n custom_name -s /path/to/src-subvolume -d /path/to/dir-on-btrfs-volume"
+    echo " $(basename ${0}) -r true -n custom_name -s /path/to/src-subvolume -d /path/to/dir-on-btrfs-volume"
 }
 
 main() {
@@ -173,6 +172,7 @@ main() {
     done
 
     need_root
+    BTRFS="btrfs ${VERBOSE:+-v}"
     copy_operation ${SRC_SUBVOLUME} ${DST_BTRFS_VOLUME} ${CUSTOM_NAME}
 }
 

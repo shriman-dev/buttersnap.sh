@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-source $(dirname ${0})/buttercopy.sh || exit 1
+source "$(dirname ${0})/buttercopy.sh" || exit 1
 
 DT_FORMAT="%H.%M.%S-%Y%m%d"
 SNAPSHOT_DIRS=()
@@ -17,9 +17,9 @@ convert_to_seconds() {
         if [[ ${arg} =~ ^every([0-9]+)(minute|hour|day|week|month|year)s?$ ]]; then
             local n=${BASH_REMATCH[1]}
             local unit=${BASH_REMATCH[2]}
-            echo $((n * ${factors[$unit]}))
+            echo $((n * ${factors[${unit}]}))
         elif [[ ${arg/dai/day} =~ ^(minute|hour|day|week|month|year)ly?$ ]]; then
-            echo ${factors[${BASH_REMATCH[1]}]}
+            echo "${factors[${BASH_REMATCH[1]}]}"
         else
             die "Invalid interval: ${arg}"
         fi
@@ -44,19 +44,19 @@ take_snap() {
     validate_path "btrfs" "${src}" "${dst}"
 
     # Create interval directory if it doesn't exist or is empty and create first snapshot in it
-    if [[ ! -d "${dst}/${interval_dir}" ]] || [[ -z "$(ls -A ${dst}/${interval_dir})" ]]; then
+    if [[ ! -d "${dst}/${interval_dir}" || -z "$(ls -A ${dst}/${interval_dir})" ]]; then
         dt_snap="$(date +${DT_FORMAT})"
         log "INFO" "Creating first snapshot | Source: ${src} | Snapshot: ${dst}/${interval_dir}/1/${dt_snap}"
         log "DEBUG" "Interval: ${interval_dir}"
         log "DEBUG" "Readonly status: ${READONLY}"
         mkdir ${VERBOSE:+-v} -p "${dst}/${interval_dir}/1"
-        ${BTRFS} subvolume snapshot ${readonly} "${src}" \
+        ${BTRFS} subvolume snapshot "${readonly}" "${src}" \
             "${dst}/${interval_dir}/1/${dt_snap}" ||
                 die "Could not create snapshot | Source: ${src} | Snapshot: ${dst}/${interval_dir}/1/${dt_snap}"
     fi
 
     # Get the last directory number
-    last_dir_num=$(ls -A1 "${dst}/${interval_dir}/" | sort -nr | head -n1)
+    last_dir_num=$(ls -A1 "${dst}/${interval_dir}"/ | sort -nr | head -n1)
     # Check if the last snapshot is older than the interval
     interval_seconds=$(convert_to_seconds "${interval_dir}")
     if is_dir_older ${interval_seconds} "${dst}/${interval_dir}/${last_dir_num}"; then
@@ -64,11 +64,11 @@ take_snap() {
         # Create a new numbred directory for the snapshot
         mkdir ${VERBOSE:+-v} -p "${dst}/${interval_dir}/$(( last_dir_num + 1 ))"
         # Get the newest directory
-        newest_dir=$(ls -A1 -t "${dst}/${interval_dir}/" | head -n1)
+        newest_dir=$(ls -A1 -t "${dst}/${interval_dir}"/ | head -n1)
         log "INFO" "Taking snapshot | Source: ${src} | Snapshot: ${dst}/${interval_dir}/${newest_dir}/${dt_snap}"
         log "DEBUG" "Interval: ${interval_dir}"
         log "DEBUG" "Readonly status: ${READONLY}"
-        ${BTRFS} subvolume snapshot ${readonly} "${src}" \
+        ${BTRFS} subvolume snapshot "${readonly}" "${src}" \
             "${dst}/${interval_dir}/${newest_dir}/${dt_snap}" ||
                 die "Could not create snapshot | Source: ${src} | Snapshot: ${dst}/${interval_dir}/${newest_dir}/${dt_snap}"
     fi
@@ -82,17 +82,17 @@ delete_snap() {
     validate_path "btrfs" "${del_dir}/${interval_dir}"
 
     # Count the number of directories in the interval directory
-    dir_count=$(ls -A1 "${del_dir}/${interval_dir}/" | wc -l)
+    dir_count=$(ls -A1 "${del_dir}/${interval_dir}"/ | wc -l)
     # If there are more directories than the number of snapshots to keep
     if [[ ${dir_count} -gt ${keep_snap} ]]; then
         log "INFO" "Snapshot count (${dir_count}) exceeds specified limit of ${keep_snap} for interval: ${interval_dir}"
         log "INFO" "Deleting..."
         # Loop through the directories in the interval directory and delete snapshots starting from oldest
-        for ndir in $(ls -A1 --sort=time --reverse "${del_dir}/${interval_dir}/" | head -n -${keep_snap}); do
+        for ndir in $(ls -A1 --sort=time --reverse "${del_dir}/${interval_dir}"/ | head -n -${keep_snap}); do
             ${BTRFS} subvolume delete "${del_dir}/${interval_dir}/${ndir}"/*
         done
         log "DEBUG" "Removing empty directories in the interval directory: ${interval_dir}"
-        find "${del_dir}/${interval_dir}/" -maxdepth 1 -mindepth 1 -type d -empty \
+        find "${del_dir}/${interval_dir}"/ -maxdepth 1 -mindepth 1 -type d -empty \
                 $([[ ${VERBOSE} == 2 ]] && echo "-print") -delete
     fi
 }
@@ -178,7 +178,7 @@ snapshot_operation() {
         done
         # Delete old snapshots in each given directory
         for delete_dir in "${DELETE_DIRS[@]}"; do
-            delete_snap "${delete_dir}" "${interval}" ${keepsnap}
+            delete_snap "${delete_dir}" "${interval}" "${keepsnap}"
         done
     done
 }

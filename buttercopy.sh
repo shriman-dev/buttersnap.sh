@@ -23,7 +23,7 @@ log() {
 
 # Error handling with optional pre-exit function call
 die() {
-    local pre_exit_hook="${2}"
+    local pre_exit_hook="${2:-}"
     log "ERROR" "${1}"; [[ -n "${pre_exit_hook}" ]] && ${pre_exit_hook}; exit 1
 }
 
@@ -55,7 +55,7 @@ validate_path() {
 
 one_filesystem() {
     [[ $# -eq 2 ]] || die "Specify two paths to check filesystem"
-    [[ $(stat -L -c %d ${1}) -eq $(stat -L -c %d ${2}) ]]
+    [[ $(stat -L -c %d "${1}") -eq $(stat -L -c %d "${2}") ]]
 }
 
 if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
@@ -78,17 +78,19 @@ cleanup_temp() {
 
 copy_operation() {
     local src_subvol="${1%/}" dst_btrfs_vol="${2%/}" copy_suffix="buttercopy"
-    local dst_subvol_name=${3:-"$(basename ${src_subvol})"}
+    local dst_subvol_name="${3:-$(basename "${src_subvol}")}"
     local readonly="$([[ ${READONLY} == true ]] && echo '-r')"
 
     validate_path "btrfs" "${src_subvol}" "${dst_btrfs_vol}"
     one_filesystem "${src_subvol}" "${dst_btrfs_vol}" &&
             die "Destination path is on the same BTRFS volume as the source subvolume"
 
+    trap 'die "Operation was interrupt" "cleanup_temp src-suffix dst-suffix tmpdir"' SIGTERM SIGINT
+
     local grep_pattern="${dst_subvol_name}$|${dst_subvol_name}_${copy_suffix}$"
     local suffix_src_subvol="$(basename ${src_subvol})_${copy_suffix}"
     if ! ${BTRFS} subvolume list "${dst_btrfs_vol}" | grep -qEw "${grep_pattern}"; then
-        log "INFO" "Sending full snapshot copy | Source: ${src_subvol} to BTRFS volume: ${dst_btrfs_vol}"
+        log "INFO" "Sending full snapshot copy | Source: ${src_subvol}, to BTRFS volume: ${dst_btrfs_vol}"
 
         local btrfs_send="${BTRFS} send --compressed-data"
         local btrfs_receive="$([[ ${VERBOSE} -eq 2 ]] && echo 'btrfs -v' || echo 'btrfs') receive"
@@ -104,9 +106,9 @@ copy_operation() {
 
         log "DEBUG" "Creating \"${dst_subvol_name}\" named subvolume on BTRFS volume: ${dst_btrfs_vol}"
         log "DEBUG" "Readonly status: ${READONLY}"
-        ${BTRFS} subvolume snapshot ${readonly} "${dst_btrfs_vol}/${suffix_src_subvol}" \
+        ${BTRFS} subvolume snapshot "${readonly}" "${dst_btrfs_vol}/${suffix_src_subvol}" \
                 "${dst_btrfs_vol}/${dst_subvol_name}" ||
-                die "Could not create ${READONLY+readonly }subvolume on: ${dst_btrfs_vol}" \
+                die "Could not create subvolume on: ${dst_btrfs_vol}" \
                     "cleanup_temp src-suffix dst-suffix tmpdir"
         cleanup_temp src-suffix dst-suffix tmpdir
     else
@@ -114,7 +116,7 @@ copy_operation() {
         die "Copy failed. Existing subvolume found with name \"${dst_subvol_name}\" on ${dst_btrfs_vol}"
     fi
 
-    log "INFO" "Done."
+    log "INFO" "Successfully sent full snapshot copy"
 }
 
 show_help() {
@@ -173,7 +175,7 @@ main() {
 
     need_root
     BTRFS="btrfs ${VERBOSE:+-v}"
-    copy_operation ${SRC_SUBVOLUME} ${DST_BTRFS_VOLUME} ${CUSTOM_NAME}
+    copy_operation "${SRC_SUBVOLUME}" "${DST_BTRFS_VOLUME}" "${CUSTOM_NAME}"
 }
 
 main "$@"

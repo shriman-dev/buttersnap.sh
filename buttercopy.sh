@@ -106,7 +106,7 @@ copy_operation() {
 
         log "DEBUG" "Creating \"${dst_subvol_name}\" named subvolume on BTRFS volume: ${dst_btrfs_vol}"
         log "DEBUG" "Readonly status: ${READONLY}"
-        ${BTRFS} subvolume snapshot "${readonly}" "${dst_btrfs_vol}/${suffix_src_subvol}" \
+        ${BTRFS} subvolume snapshot ${readonly} "${dst_btrfs_vol}/${suffix_src_subvol}" \
                 "${dst_btrfs_vol}/${dst_subvol_name}" ||
                 die "Could not create subvolume on: ${dst_btrfs_vol}" \
                     "cleanup_temp src-suffix dst-suffix tmpdir"

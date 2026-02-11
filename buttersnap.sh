@@ -50,7 +50,7 @@ take_snap() {
         log "DEBUG" "Interval: ${interval_dir}"
         log "DEBUG" "Readonly status: ${READONLY}"
         mkdir ${VERBOSE:+-v} -p "${dst}/${interval_dir}/1"
-        ${BTRFS} subvolume snapshot "${readonly}" "${src}" \
+        ${BTRFS} subvolume snapshot ${readonly} "${src}" \
             "${dst}/${interval_dir}/1/${dt_snap}" ||
                 die "Could not create snapshot | Source: ${src} | Snapshot: ${dst}/${interval_dir}/1/${dt_snap}"
     fi
@@ -68,7 +68,7 @@ take_snap() {
         log "INFO" "Taking snapshot | Source: ${src} | Snapshot: ${dst}/${interval_dir}/${newest_dir}/${dt_snap}"
         log "DEBUG" "Interval: ${interval_dir}"
         log "DEBUG" "Readonly status: ${READONLY}"
-        ${BTRFS} subvolume snapshot "${readonly}" "${src}" \
+        ${BTRFS} subvolume snapshot ${readonly} "${src}" \
             "${dst}/${interval_dir}/${newest_dir}/${dt_snap}" ||
                 die "Could not create snapshot | Source: ${src} | Snapshot: ${dst}/${interval_dir}/${newest_dir}/${dt_snap}"
     fi
